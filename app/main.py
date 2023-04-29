@@ -30,13 +30,21 @@ def start_index(name: str):
 def read_index():
     return str(get_index())
 
+@app.get("/list_indices")
+def list_indices():
+    return index_helpers.list_indices()
+
+@app.delete("/delete_index/{doc_id}")
+def delete_index(doc_id: str):
+    return index_helpers.delete_index(doc_id)
+
 @app.get("/")
 def read_root():
     return "API is up"
 
 @app.get("/query/{chat_id}")
 def query(text: str, chat_id: str):
-    return query_index(text, chat_id)
+    return {"content": query_index(text, chat_id)}
 
 @app.get("/get_chat/{chat_id}")
 def get_chat(chat_id: str):
@@ -54,6 +62,10 @@ async def create_upload_file(file: UploadFile):
         os.remove(filepath)
 
     return {"filename": file.filename}
+
+@app.delete("/delete_all_indices")
+def delete_all_indices():
+    return index_helpers.delete_all_indices()
 
 async def save_file_to_disc(file: UploadFile, filepath: str):
     with open(filepath, "wb") as f:

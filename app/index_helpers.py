@@ -8,6 +8,9 @@ from langchain import OpenAI
 from langchain.agents import initialize_agent
 import pinecone
 import os
+import string
+import secrets
+import redis
 
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -19,6 +22,7 @@ for key in required_keys:
         raise ValueError(f"The {key} environment variable is not set!")
 
 index = None
+pinecone_index = None
 
 tools = [
     Tool(
@@ -40,7 +44,7 @@ def create_index(name: str):
     pinecone.create_index(name, dimension=1536, metric="euclidean", pod_type="p1")
 
 def init_index(name: str):
-    global index
+    global index, pinecone_index
     init_pinecone()
     pinecone_index = pinecone.Index(name) 
 
@@ -82,6 +86,59 @@ def insert_index(filepath: str) -> str | None:
         return None
 
     doc = SimpleDirectoryReader(input_files=[filepath]).load_data()[0]
+
+    if doc.doc_id is not None:
+        save_to_redis(filepath, doc.doc_id)
+
     index.insert(doc)
 
     return "inserted to index"
+
+def delete_index(doc_id: str) -> str | None:
+    global index
+    if index is None:
+        return None
+
+    index.delete(doc_id)
+    delete_from_redis(doc_id)
+
+    return f"document with id: {doc_id} deleted from index"
+
+def delete_all_indices() -> str | None:
+    global pinecone_index
+    if pinecone_index is None:
+        return None
+
+    pinecone_index.delete(delete_all=True)
+    r = redis.from_url(REDIS_CONN)
+    r.delete("documents")
+
+    return "all documents deleted from index"
+
+def list_indices() -> List[str]:
+    r = redis.from_url(REDIS_CONN)
+    result = []
+    for filename in r.hkeys("documents"):
+        result.append({"filename": filename.decode(), "id": r.hget("documents", filename).decode('utf-8')}) # type: ignore
+    return result
+
+def save_to_redis(filepath: str, doc_id: str):
+    r = redis.from_url(REDIS_CONN)
+    r.hset("documents", get_random_name_from_path(filepath), doc_id)
+
+def delete_from_redis(doc_id: str):
+    r = redis.from_url(REDIS_CONN)
+    for filename in r.hkeys("documents"):
+        if r.hget("documents", filename).decode('utf-8') == doc_id: # type: ignore
+            r.hdel("documents", filename)
+            return
+
+def get_random_string(length):
+    alphabet = string.ascii_letters + string.digits + '-_'
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+def get_random_name_from_path(path, length=5):
+    filename = os.path.basename(path)
+    name, ext = os.path.splitext(filename)
+    random_suffix = get_random_string(length)
+    return f"{name}_{random_suffix}{ext}"
