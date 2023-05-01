@@ -14,7 +14,7 @@ import redis
 
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-REDIS_CONN = os.environ.get("REDIS_CONN") or os.environ.setdefault("REDIS_CONN", "redis://localhost:6379")
+REDIS_CONN = os.environ.get("REDIS_CONN")
 
 required_keys = ['PINECONE_API_KEY', 'OPENAI_API_KEY', 'REDIS_CONN']
 for key in required_keys:
@@ -60,6 +60,9 @@ def query_index(query_text: str, chat_id: str) -> str:
     if index is None:
         return "index is empty"
 
+    if REDIS_CONN is None:
+        return "REDIS_CONN is not set"
+
     history = RedisChatMessageHistory(chat_id, url=REDIS_CONN, ttl=60*60*24)
     conversational_memory = ConversationBufferWindowMemory(
         chat_memory=history,
@@ -77,7 +80,10 @@ def get_chat_history(chat_id: str) -> List[BaseMessage] | str:
     if index is None:
         return "index is empty"
 
-    history = RedisChatMessageHistory(chat_id)
+    if REDIS_CONN is None:
+        return "REDIS_CONN is not set"
+
+    history = RedisChatMessageHistory(chat_id, url=REDIS_CONN)
     return history.messages
 
 def insert_index(filepath: str) -> str | None:
@@ -110,12 +116,16 @@ def delete_all_indices() -> str | None:
         return None
 
     pinecone_index.delete(delete_all=True)
+    if REDIS_CONN is None:
+        return "REDIS_CONN is not set"
     r = redis.from_url(REDIS_CONN)
     r.delete("documents")
 
     return "all documents deleted from index"
 
 def list_indices() -> List[str]:
+    if REDIS_CONN is None:
+        raise ValueError("REDIS_CONN is not set")
     r = redis.from_url(REDIS_CONN)
     result = []
     for filename in r.hkeys("documents"):
@@ -123,10 +133,14 @@ def list_indices() -> List[str]:
     return result
 
 def save_to_redis(filepath: str, doc_id: str):
+    if REDIS_CONN is None:
+        return "REDIS_CONN is not set"
     r = redis.from_url(REDIS_CONN)
     r.hset("documents", get_random_name_from_path(filepath), doc_id)
 
 def delete_from_redis(doc_id: str):
+    if REDIS_CONN is None:
+        return "REDIS_CONN is not set"
     r = redis.from_url(REDIS_CONN)
     for filename in r.hkeys("documents"):
         if r.hget("documents", filename).decode('utf-8') == doc_id: # type: ignore

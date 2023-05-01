@@ -1,6 +1,6 @@
-# fly.toml file generated for prevess-chat on 2023-04-27T22:38:38+02:00
+# fly.toml file generated for sport-chat-api on 2023-05-01T12:06:04+02:00
 
-app = "prevess-chat"
+app = "sport-chat-api"
 kill_signal = "SIGINT"
 kill_timeout = 5
 primary_region = "waw"

@@ -1,10 +1,14 @@
 import os
-from fastapi import FastAPI, UploadFile
+from typing import Annotated
+from fastapi import FastAPI, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
 from app import index_helpers
 from app.index_helpers import init_index, query_index, get_index, insert_index, create_index
 
 app = FastAPI()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app.add_middleware(
     CORSMiddleware,
@@ -13,6 +17,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/items/")
+async def read_items(token: Annotated[str, Depends(oauth2_scheme)]):
+    return {"token": token}
 
 @app.get("/create_index/{name}")
 def create_new_index(name: str):
